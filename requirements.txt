@@ -1,0 +1,8 @@
+streamlit
+langchain
+langchain-community
+faiss-cpu
+chromadb
+huggingface-hub
+transformers
+pypdf
