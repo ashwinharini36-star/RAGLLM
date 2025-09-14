@@ -23,16 +23,12 @@ else:
     st.stop()
 
 # ----------------------------------------------------
-# Embeddings model (HF Inference API, safe model)
+# Embeddings model (via Hugging Face Inference API)
 # ----------------------------------------------------
-try:
-    embeddings = HuggingFaceInferenceAPIEmbeddings(
-        api_key=os.environ["HUGGINGFACEHUB_API_TOKEN"],
-        model_name="sentence-transformers/paraphrase-MiniLM-L6-v2"
-    )
-except Exception as e:
-    st.error(f"Embedding model failed to load: {str(e)}")
-    st.stop()
+embeddings = HuggingFaceInferenceAPIEmbeddings(
+    api_key=os.environ["HUGGINGFACEHUB_API_TOKEN"],
+    model_name="sentence-transformers/paraphrase-MiniLM-L6-v2"
+)
 
 # ----------------------------------------------------
 # Streamlit UI
@@ -55,14 +51,27 @@ if uploaded_file:
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
     chunks = splitter.split_documents(docs)
 
-    # Build FAISS index
-    try:
-        vectorstore = FAISS.from_documents(chunks, embeddings)
-    except Exception as e:
-        st.error("⚠️ Embedding API call failed. Try with a smaller PDF or fewer pages.")
-        st.write(f"Debug info: {str(e)}")
-        st.stop()
+    st.info(f"PDF loaded and split into {len(chunks)} chunks. Creating embeddings in batches...")
 
+    # ----------------------------------------------------
+    # Batch embedding to avoid API overload
+    # ----------------------------------------------------
+    texts = [c.page_content for c in chunks]
+    metadatas = [c.metadata for c in chunks]
+
+    batch_size = 16
+    all_embeddings = []
+    for i in range(0, len(texts), batch_size):
+        batch = texts[i:i + batch_size]
+        try:
+            batch_embeddings = embeddings.embed_documents(batch)
+            all_embeddings.extend(batch_embeddings)
+        except Exception as e:
+            st.error(f"⚠️ Embedding batch {i//batch_size+1} failed: {str(e)}")
+            st.stop()
+
+    # Build FAISS vectorstore from embeddings
+    vectorstore = FAISS.from_embeddings(all_embeddings, texts, embeddings, metadatas=metadatas)
     retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
 
     st.success("✅ PDF indexed. You can now ask questions.")
@@ -82,7 +91,7 @@ if uploaded_file:
             try:
                 answer = qa.run(query)
             except Exception as e:
-                st.error("⚠️ LLM call failed. Check your Hugging Face token or model availability.")
+                st.error("⚠️ LLM call failed. Check Hugging Face model or token.")
                 st.write(f"Debug info: {str(e)}")
                 st.stop()
 
