@@ -1,26 +1,54 @@
 import streamlit as st
+from langchain_community.document_loaders import PyPDFLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain.chains import RetrievalQA
-from langchain.llms import HuggingFacePipeline
-from transformers import pipeline
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.llms import HuggingFaceHub
 
-# --- Load FAISS index ---
-embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
-retriever = db.as_retriever(search_kwargs={"k": 3})
+# ----------------------
+# Config
+# ----------------------
+st.set_page_config(page_title="RAG PDF Summarizer", layout="wide")
 
-# --- Local model pipeline (runs without API calls) ---
-generator = pipeline("text2text-generation", model="google/flan-t5-base")
-llm = HuggingFacePipeline(pipeline=generator)
+# Initialize embeddings model
+embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
-# --- Retrieval Q&A chain ---
-qa = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
+# ----------------------
+# Streamlit UI
+# ----------------------
+st.title("📄 RAG PDF Summarizer")
 
-# --- Streamlit UI ---
-st.title("📊 Annual Report Q&A (Local Pipeline)")
+uploaded_file = st.file_uploader("Upload a PDF", type=["pdf"])
 
-query = st.text_input("Ask a question about the annual report:")
-if query:
-    answer = qa.run(query)
-    st.write("**Answer:**", answer)
+if uploaded_file:
+    # Load and split PDF
+    loader = PyPDFLoader(uploaded_file)
+    docs = loader.load()
+
+    splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
+    chunks = splitter.split_documents(docs)
+
+    # Build FAISS index
+    vectorstore = FAISS.from_documents(chunks, embeddings)
+
+    st.success("✅ PDF indexed. You can now ask questions.")
+
+    query = st.text_input("Ask a question about your PDF:")
+
+    if query:
+        retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+
+        # Initialize small answering model (Flan-T5 from Hugging Face Hub)
+        llm = HuggingFaceHub(
+            repo_id="google/flan-t5-base",
+            model_kwargs={"temperature": 0, "max_length": 512}
+        )
+
+        from langchain.chains import RetrievalQA
+        qa = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
+
+        with st.spinner("Thinking..."):
+            answer = qa.run(query)
+
+        st.write("### Answer:")
+        st.write(answer)
