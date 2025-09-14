@@ -6,5 +6,3 @@ chromadb
 huggingface-hub
 transformers
 pypdf
-sentence-transformers
-torch

@@ -4,7 +4,7 @@ import streamlit as st
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.embeddings import HuggingFaceInferenceAPIEmbeddings
 from langchain_community.llms import HuggingFaceHub
 from langchain.chains import RetrievalQA
 
@@ -23,11 +23,11 @@ else:
     st.stop()
 
 # ----------------------------------------------------
-# Embeddings model (force CPU for Streamlit Cloud)
+# Embeddings model (via Hugging Face Inference API)
 # ----------------------------------------------------
-embeddings = HuggingFaceEmbeddings(
-    model_name="sentence-transformers/all-MiniLM-L6-v2",
-    model_kwargs={"device": "cpu"}
+embeddings = HuggingFaceInferenceAPIEmbeddings(
+    api_key=os.environ["HUGGINGFACEHUB_API_TOKEN"],
+    model_name="sentence-transformers/all-MiniLM-L6-v2"
 )
 
 # ----------------------------------------------------
@@ -60,7 +60,7 @@ if uploaded_file:
     query = st.text_input("Ask a question about your PDF:")
 
     if query:
-        # Hugging Face Hub model (Flan-T5)
+        # Hugging Face Hub model (Flan-T5 for answering)
         llm = HuggingFaceHub(
             repo_id="google/flan-t5-base",
             model_kwargs={"max_new_tokens": 512}
