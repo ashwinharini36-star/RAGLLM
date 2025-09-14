@@ -57,10 +57,10 @@ if uploaded_file:
     query = st.text_input("Ask a question about your PDF:")
 
     if query:
-        # Small answering model (Flan-T5 on Hugging Face Hub)
+        # Hugging Face Hub model (Flan-T5)
         llm = HuggingFaceHub(
             repo_id="google/flan-t5-base",
-            model_kwargs={"temperature": 0, "max_length": 512}
+            model_kwargs={"max_new_tokens": 512}
         )
 
         qa = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
