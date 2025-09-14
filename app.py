@@ -23,12 +23,16 @@ else:
     st.stop()
 
 # ----------------------------------------------------
-# Embeddings model (via Hugging Face Inference API)
+# Embeddings model (HF Inference API, safe model)
 # ----------------------------------------------------
-embeddings = HuggingFaceInferenceAPIEmbeddings(
-    api_key=os.environ["HUGGINGFACEHUB_API_TOKEN"],
-    model_name="sentence-transformers/all-MiniLM-L6-v2"
-)
+try:
+    embeddings = HuggingFaceInferenceAPIEmbeddings(
+        api_key=os.environ["HUGGINGFACEHUB_API_TOKEN"],
+        model_name="sentence-transformers/paraphrase-MiniLM-L6-v2"
+    )
+except Exception as e:
+    st.error(f"Embedding model failed to load: {str(e)}")
+    st.stop()
 
 # ----------------------------------------------------
 # Streamlit UI
@@ -52,7 +56,13 @@ if uploaded_file:
     chunks = splitter.split_documents(docs)
 
     # Build FAISS index
-    vectorstore = FAISS.from_documents(chunks, embeddings)
+    try:
+        vectorstore = FAISS.from_documents(chunks, embeddings)
+    except Exception as e:
+        st.error("⚠️ Embedding API call failed. Try with a smaller PDF or fewer pages.")
+        st.write(f"Debug info: {str(e)}")
+        st.stop()
+
     retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
 
     st.success("✅ PDF indexed. You can now ask questions.")
@@ -69,7 +79,12 @@ if uploaded_file:
         qa = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
 
         with st.spinner("Thinking..."):
-            answer = qa.run(query)
+            try:
+                answer = qa.run(query)
+            except Exception as e:
+                st.error("⚠️ LLM call failed. Check your Hugging Face token or model availability.")
+                st.write(f"Debug info: {str(e)}")
+                st.stop()
 
         st.subheader("Answer:")
         st.write(answer)
