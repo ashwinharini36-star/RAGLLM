@@ -54,13 +54,19 @@ if uploaded_file:
     st.info(f"PDF loaded and split into {len(chunks)} chunks. Creating embeddings in batches...")
 
     # ----------------------------------------------------
-    # Batch embedding to avoid API overload
+    # Batch embedding with progress bar
     # ----------------------------------------------------
     texts = [c.page_content for c in chunks]
     metadatas = [c.metadata for c in chunks]
 
     batch_size = 16
     all_embeddings = []
+
+    progress = st.progress(0)
+    status = st.empty()
+
+    total_batches = (len(texts) - 1) // batch_size + 1
+
     for i in range(0, len(texts), batch_size):
         batch = texts[i:i + batch_size]
         try:
@@ -69,6 +75,12 @@ if uploaded_file:
         except Exception as e:
             st.error(f"⚠️ Embedding batch {i//batch_size+1} failed: {str(e)}")
             st.stop()
+
+        # Update progress
+        progress.progress(min((i + batch_size) / len(texts), 1.0))
+        status.text(f"Processed batch {i//batch_size + 1} of {total_batches}")
+
+    status.text("✅ All batches processed")
 
     # Build FAISS vectorstore from embeddings
     vectorstore = FAISS.from_embeddings(all_embeddings, texts, embeddings, metadatas=metadatas)
