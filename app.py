@@ -23,9 +23,12 @@ else:
     st.stop()
 
 # ----------------------------------------------------
-# Embeddings model
+# Embeddings model (force CPU for Streamlit Cloud)
 # ----------------------------------------------------
-embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+embeddings = HuggingFaceEmbeddings(
+    model_name="sentence-transformers/all-MiniLM-L6-v2",
+    model_kwargs={"device": "cpu"}
+)
 
 # ----------------------------------------------------
 # Streamlit UI
